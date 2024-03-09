@@ -8,19 +8,84 @@ from config import app, db, api
 from models import User, Recipe
 
 class Signup(Resource):
-    pass
+    def post(self):
+        json = request.get_json()
+        user = User(
+            username=json.get('username'),
+            image_url=json.get('image_url'),
+            bio=json.get('bio')
+        )
+        user.password_hash = json.get('password')
+        if user and user.username:
+
+            db.session.add(user)
+            db.session.commit()
+
+            session['user_id'] = user.id
+
+            return user.to_dict(), 201
+        
+        return {"Message": "One or more fields are invalid"}, 422
+        
+
+        
 
 class CheckSession(Resource):
-    pass
+    def get(self):
+        if session['user_id']:
+            user = User.query.filter(User.id == session["user_id"]).first()
+            return user.to_dict(), 200
+        
+        return {"Message": "User not found"}, 401
 
 class Login(Resource):
-    pass
+    def post(self):
+        json = request.get_json()
+        username = json.get('username')
+        password = json.get('password')
+
+        user = User.query.filter(User.username == username).first()
+        if user and user.authenticate(password):
+            session['user_id'] = user.id
+            return user.to_dict()
+        
+        return {"Message": "User not found"}, 401
 
 class Logout(Resource):
-    pass
+    def delete(self):
+        if session['user_id']:
+
+            session['user_id'] = None
+            return {}, 204
+        
+        return {"Message": "User not logged in"}, 401
 
 class RecipeIndex(Resource):
-    pass
+    def get(self):
+        if session['user_id']:
+            return [recipe.to_dict() for recipe in Recipe.query.all()], 200
+        
+        return {"Message": "User not logged in"}, 401
+    
+    def post(self):
+        json = request.get_json()
+        if session['user_id']:
+            recipe = Recipe(
+                title = json.get("title"),
+                instructions = json.get("instructions"),
+                minutes_to_complete = json.get("minutes_to_complete"),
+                user_id = session['user_id']
+            )
+            
+            if recipe and len(recipe.instructions) >= 50:
+                db.session.add(recipe)
+                db.session.commit()
+                return recipe.to_dict(), 201
+            
+            return {"Message": "One or more fields are invalid"}, 422
+        
+        return {"Message": "User not logged in"}, 401
+
 
 api.add_resource(Signup, '/signup', endpoint='signup')
 api.add_resource(CheckSession, '/check_session', endpoint='check_session')
